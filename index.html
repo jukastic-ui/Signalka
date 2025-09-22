@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Детектор изменений</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 300px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            background-color: #1e1e1e;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        
+        #video-container {
+            width: 100%;
+            height: 40%;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            background-color: #000;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #image-view {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            background-color: #000;
+            z-index: 15;
+            display: none;
+        }
+        
+        .controls {
+            width: 100%;
+            padding: 5px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+            height: 60%;
+        }
+        
+        .slider-container {
+            width: 100%;
+            margin-bottom: 3px;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 11px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #333;
+            outline: none;
+            border-radius: 5px;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        
+        input[type="number"] {
+            width: 50px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #333;
+            color: white;
+            font-size: 11px;
+            height: 28px;
+            text-align: center;
+        }
+        
+        .buttons-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        button {
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 6px;
+            background: #2c2c2c;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            padding: 2px;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .button-active {
+            background: #4CAF50 !important;
+        }
+        
+        .button-save {
+            background: #2196F3;
+        }
+        
+        .button-save-active {
+            background: #0b7dda !important;
+        }
+        
+        .button-folder {
+            background: #FF9800;
+        }
+        
+        .button-folder-active {
+            background: #e68900 !important;
+        }
+        
+        .button-open {
+            background: #9C27B0;
+        }
+        
+        .button-open-active {
+            background: #7B1FA2 !important;
+        }
+        
+        .button-instruction {
+            background: #607D8B;
+        }
+        
+        .button-erase {
+            background: #F44336;
+        }
+        
+        .button-flash {
+            background: #FFC107;
+            color: black;
+        }
+        
+        .button-flash-active {
+            background: #ff9800 !important;
+        }
+        
+        .status {
+            margin-top: 3px;
+            font-size: 12px;
+            text-align: center;
+            min-height: 30px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            flex-shrink: 0;
+        }
+        
+        .flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        @keyframes flash {
+            0% { opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+        
+        .save-info {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 2px;
+            height: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .nav-buttons {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 15px;
+            z-index: 16;
+            display: none;
+        }
+        
+        .nav-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+        }
+        
+        .image-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 15px;
+            z-index: 16;
+            display: none;
+            font-size: 12px;
+        }
+        
+        .close-button {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: white;
+            z-index: 16;
+            display: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            display: none;
+        }
+        
+        .modal-content {
+            background: #2c2c2c;
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        
+        .modal-button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        
+        .modal-confirm {
+            background: #F44336;
+            color: white;
+        }
+        
+        .modal-cancel {
+            background: #607D8B;
+            color: white;
+        }
+        
+        .instruction-content {
+            font-size: 11px;
+            line-height: 1.3;
+        }
+        
+        .instruction-section {
+            margin-bottom: 8px;
+        }
+        
+        .instruction-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #4CAF50;
+            font-size: 12px;
+        }
+        
+        .no-images-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            z-index: 20;
+            display: none;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        /* Новые стили для информационного блока */
+        .stats-container {
+            display: flex;
+            flex-direction: column;
+            background: #2c2c2c;
+            border-radius: 5px;
+            padding: 3px 6px;
+            font-size: 10px;
+            min-width: 60px;
+            margin-left: 5px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stat-label {
+            color: #aaa;
+        }
+        
+        .stat-value {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .input-with-stats {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <img id="image-view">
+            <div class="no-images-message" id="no-images-message">Нет сохраненных фото</div>
+            <div class="nav-buttons" id="nav-buttons">
+                <div class="nav-button" id="prev-button">❮</div>
+                <div class="nav-button" id="next-button">❯</div>
+            </div>
+            <div class="image-counter" id="image-counter">1/1</div>
+            <div class="close-button" id="close-button">✕</div>
+            <div class="flash" id="flash"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Зи:</span>
+                    <span id="threshold-value">5%</span>
+                </div>
+                <input type="range" id="threshold" min="1" max="100" value="5" step="1">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Опрос:</span>
+                    <span id="polling-value">500 мс</span>
+                </div>
+                <input type="range" id="polling-interval" min="100" max="2000" value="500" step="100">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Инт:</span>
+                    <span id="interval-value">5 сек</span>
+                </div>
+                <input type="range" id="save-interval" min="1" max="60" value="5" step="1">
+            </div>
+            
+            <div class="input-container">
+                <input type="number" id="threshold-input" min="1" max="100" step="1" value="5">
+                <button id="start-btn" title="Старт">Ст</button>
+                <button id="stop-btn" disabled title="Стоп">Сп</button>
+                <div class="input-with-stats">
+                    <button id="screen-flash-btn" class="button-flash" title="Вкл/выкл вспышку экрана">Вс</button>
+                    <div class="stats-container" id="stats-container">
+                        <div class="stat-item">
+                            <span class="stat-label">Дет:</span>
+                            <span class="stat-value" id="detection-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Фото:</span>
+                            <span class="stat-value" id="photo-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="buttons-container">
+                <button id="folder-btn" class="button-folder" title="Папка">Пк</button>
+                <button id="open-btn" class="button-open" title="Открыть" disabled>От</button>
+                <button id="save-btn" class="button-save" title="Сохр. изобр." disabled>Си</button>
+                <button id="stop-save-btn" title="Остановить сохр." disabled>Ос</button>
+                <button id="instruction-btn" class="button-instruction" title="Инструкция">Ин</button>
+                <button id="erase-btn" class="button-erase" title="Стереть" disabled>Уд</button>
+                <button id="toggle-flash" class="button-flash" title="Фонарь" disabled>Фн</button>
+            </div>
+            
+            <div class="save-info" id="save-info">Папка не выбрана</div>
+            
+            <div class="status" id="status">Камера не активирована</div>
+        </div>
+    </div>
+
+    <!-- Модальное окно инструкции -->
+    <div class="modal" id="instruction-modal">
+        <div class="modal-content">
+            <h3 style="text-align: center; margin-bottom: 10px;">Инструкция</h3>
+            <div class="instruction-content">
+                <div class="instruction-section">
+                    <div class="instruction-title">Назначение кнопок:</div>
+                    <div><strong>Ст</strong> - Старт мониторина</div>
+                    <div><strong>Сп</strong> - Стоп мониторинга</div>
+                    <div><strong>Вс</strong> - Вкл/выкл вспышку экрана</div>
+                    <div><strong>Пк</strong> - Выбор папка для сохранения</div>
+                    <div><strong>От</strong> - Открыть сохраненные фото</div>
+                    <div><strong>Си</strong> - Сохранение изображений (вкл/выкл)</div>
+                    <div><strong>Ос</strong> - Остановить сохранение</div>
+                    <div><strong>Ин</strong> - Инструкция</div>
+                    <div><strong>Уд</strong> - Удалить все фото</div>
+                    <div><strong>Фн</strong> - Включение/выключение фонаря</div>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-button modal-cancel" id="close-instruction">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <div class="modal" id="erase-modal">
+        <div class="modal-content">
+            <h3 style="text-align: center; margin-bottom: 10px;">Подтверждение</h3>
+            <p style="font-size: 11px; text-align: center;">Удалить ВСЕ фото в папке? Это необратимо!</p>
+            <div class="modal-buttons">
+                <button class="modal-button modal-cancel" id="cancel-erase">Отмена</button>
+                <button class="modal-button modal-confirm" id="confirm-erase">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('video');
+            const imageView = document.getElementById('image-view');
+            const noImagesMessage = document.getElementById('no-images-message');
+            const navButtons = document.getElementById('nav-buttons');
+            const prevButton = document.getElementById('prev-button');
+            const nextButton = document.getElementById('next-button');
+            const imageCounter = document.getElementById('image-counter');
+            const closeButton = document.getElementById('close-button');
+            
+            const thresholdSlider = document.getElementById('threshold');
+            const thresholdInput = document.getElementById('threshold-input');
+            const thresholdValue = document.getElementById('threshold-value');
+            const pollingSlider = document.getElementById('polling-interval');
+            const pollingValue = document.getElementById('polling-value');
+            const intervalSlider = document.getElementById('save-interval');
+            const intervalValue = document.getElementById('interval-value');
+            
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const screenFlashBtn = document.getElementById('screen-flash-btn');
+            const folderBtn = document.getElementById('folder-btn');
+            const openBtn = document.getElementById('open-btn');
+            const saveBtn = document.getElementById('save-btn');
+            const stopSaveBtn = document.getElementById('stop-save-btn');
+            const instructionBtn = document.getElementById('instruction-btn');
+            const eraseBtn = document.getElementById('erase-btn');
+            const toggleFlashBtn = document.getElementById('toggle-flash');
+            
+            const status = document.getElementById('status');
+            const saveInfo = document.getElementById('save-info');
+            const flash = document.getElementById('flash');
+            
+            const instructionModal = document.getElementById('instruction-modal');
+            const eraseModal = document.getElementById('erase-modal');
+            const closeInstructionBtn = document.getElementById('close-instruction');
+            const cancelEraseBtn = document.getElementById('cancel-erase');
+            const confirmEraseBtn = document.getElementById('confirm-erase');
+            
+            // Новые элементы для статистики
+            const detectionCountEl = document.getElementById('detection-count');
+            const photoCountEl = document.getElementById('photo-count');
+            
+            let stream = null;
+            let canvas = null;
+            let context = null;
+            let lastImageData = null;
+            let monitoringInterval = null;
+            let isMonitoring = false;
+            let isSaving = false;
+            let isViewingImages = false;
+            let audioContext = null;
+            let oscillator = null;
+            let directoryHandle = null;
+            let lastSaveTime = 0;
+            let saveInterval = 5;
+            let pollingInterval = 500;
+            let imageFiles = [];
+            let currentImageIndex = -1;
+            let isScreenFlashEnabled = true;
+            let isFlashlightOn = false;
+            
+            // Новые переменные для статистики
+            let detectionCount = 0;
+            let photoCount = 0;
+            let sessionStarted = false;
+            
+            // Инициализация
+            initCamera();
+            
+            // Обработчики событий
+            thresholdSlider.addEventListener('input', function() {
+                const value = parseInt(this.value);
+                thresholdInput.value = value;
+                thresholdValue.textContent = value + '%';
+                saveSettings();
+            });
+            
+            thresholdInput.addEventListener('input', function() {
+                if (this.value === '') {
+                    thresholdValue.textContent = '0%';
+                    return;
+                }
+                
+                let value = Math.max(1, Math.min(100, parseInt(this.value) || 5));
+                this.value = value;
+                thresholdSlider.value = value;
+                thresholdValue.textContent = value + '%';
+                saveSettings();
+            });
+            
+            thresholdInput.addEventListener('blur', function() {
+                if (this.value === '' || isNaN(this.value)) {
+                    this.value = 5;
+                    thresholdSlider.value = 5;
+                    thresholdValue.textContent = '5%';
+                    saveSettings();
+                }
+            });
+            
+            pollingSlider.addEventListener('input', function() {
+                pollingInterval = parseInt(this.value);
+                pollingValue.textContent = this.value + ' мс';
+                saveSettings();
+                
+                if (isMonitoring) {
+                    stopMonitoring();
+                    startMonitoring();
+                }
+            });
+            
+            intervalSlider.addEventListener('input', function() {
+                saveInterval = parseInt(this.value);
+                intervalValue.textContent = this.value + ' сек';
+                saveSettings();
+            });
+            
+            instructionBtn.addEventListener('click', function() {
+                instructionModal.style.display = 'flex';
+            });
+            
+            closeInstructionBtn.addEventListener('click', function() {
+                instructionModal.style.display = 'none';
+            });
+            
+            eraseBtn.addEventListener('click', function() {
+                if (!directoryHandle) {
+                    status.textContent = 'Сначала выберите папку';
+                    return;
+                }
+                eraseModal.style.display = 'flex';
+            });
+            
+            cancelEraseBtn.addEventListener('click', function() {
+                eraseModal.style.display = 'none';
+            });
+            
+            confirmEraseBtn.addEventListener('click', async function() {
+                eraseModal.style.display = 'none';
+                await eraseImages();
+            });
+            
+            startBtn.addEventListener('click', startMonitoring);
+            stopBtn.addEventListener('click', stopMonitoring);
+            screenFlashBtn.addEventListener('click', toggleScreenFlash);
+            folderBtn.addEventListener('click', selectFolder);
+            openBtn.addEventListener('click', viewImages);
+            saveBtn.addEventListener('click', startSaving);
+            stopSaveBtn.addEventListener('click', stopSaving);
+            toggleFlashBtn.addEventListener('click', toggleFlashlight);
+            
+            prevButton.addEventListener('click', showPrevImage);
+            nextButton.addEventListener('click', showNextImage);
+            closeButton.addEventListener('click', exitImageView);
+            
+            // Функции
+            async function initCamera() {
+                try {
+                    status.textContent = 'Доступ к камере...';
+                    
+                    // Останавливаем предыдущий поток, если есть
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                    
+                    // Получаем доступ к камере (только задняя камера)
+                    const constraints = {
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            facingMode: 'environment' // Всегда используем заднюю камеру
+                        },
+                        audio: false
+                    };
+                    
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    
+                    video.srcObject = stream;
+                    status.textContent = 'Задняя камера активирована';
+                    
+                    // Проверяем поддержку фонаря
+                    await checkFlashlightSupport();
+                    
+                    saveBtn.disabled = false;
+                    eraseBtn.disabled = false;
+                    
+                    if (!canvas) {
+                        canvas = document.createElement('canvas');
+                        context = canvas.getContext('2d');
+                    }
+                    
+                    await loadSettings();
+                    
+                } catch (error) {
+                    console.error('Ошибка доступа к камере:', error);
+                    
+                    if (error.name === 'NotAllowedError') {
+                        status.textContent = 'Разрешите доступ к камере';
+                    } else if (error.name === 'NotFoundError') {
+                        status.textContent = 'Камера не найдена';
+                    } else {
+                        status.textContent = 'Ошибка: ' + error.message;
+                    }
+                }
+            }
+            
+            // Проверка поддержки фонаря
+            async function checkFlashlightSupport() {
+                try {
+                    if (!stream) return;
+                    
+                    const track = stream.getVideoTracks()[0];
+                    if (!track) return;
+                    
+                    const capabilities = track.getCapabilities();
+                    
+                    if (capabilities.torch) {
+                        toggleFlashBtn.disabled = false;
+                        status.textContent = 'Фонарь поддерживается';
+                        return true;
+                    } else {
+                        toggleFlashBtn.disabled = true;
+                        status.textContent = 'Фонарь не поддерживается';
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Ошибка проверки фонаря:', error);
+                    toggleFlashBtn.disabled = true;
+                    status.textContent = 'Фонарь не поддерживается';
+                    return false;
+                }
+            }
+            
+            async function toggleFlashlight() {
+                if (!stream) return;
+                
+                try {
+                    const track = stream.getVideoTracks()[0];
+                    if (!track) return;
+                    
+                    isFlashlightOn = !isFlashlightOn;
+                    
+                    // Пытаемся использовать torch
+                    try {
+                        await track.applyConstraints({
+                            advanced: [{ torch: isFlashlightOn }]
+                        });
+                        
+                        if (isFlashlightOn) {
+                            toggleFlashBtn.classList.add('button-flash-active');
+                            status.textContent = 'Фонарь включен';
+                        } else {
+                            toggleFlashBtn.classList.remove('button-flash-active');
+                            status.textContent = 'Фонарь выключен';
+                        }
+                    } catch (torchError) {
+                        console.error('Не удалось управлять фонарем:', torchError);
+                        status.textContent = 'Ошибка управления фонарем';
+                        isFlashlightOn = false;
+                        toggleFlashBtn.classList.remove('button-flash-active');
+                    }
+                } catch (error) {
+                    console.error('Ошибка управления фонарем:', error);
+                    status.textContent = 'Ошибка управления фонарем';
+                    toggleFlashBtn.disabled = true;
+                }
+            }
+            
+            function toggleScreenFlash() {
+                isScreenFlashEnabled = !isScreenFlashEnabled;
+                if (isScreenFlashEnabled) {
+                    screenFlashBtn.classList.add('button-flash-active');
+                    status.textContent = 'Вспышка экрана включена';
+                } else {
+                    screenFlashBtn.classList.remove('button-flash-active');
+                    status.textContent = 'Вспышка экрана выключена';
+                }
+                saveSettings();
+            }
+            
+            function captureFrame() {
+                if (!video.videoWidth || !video.videoHeight) return null;
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                return context.getImageData(0, 0, canvas.width, canvas.height);
+            }
+            
+            function compareImages(img1, img2, threshold) {
+                if (!img1 || !img2) return 0;
+                
+                const data1 = img1.data;
+                const data2 = img2.data;
+                const length = data1.length;
+                let diff = 0;
+                
+                for (let i = 0; i < length; i += 16) {
+                    const brightness1 = (data1[i] + data1[i+1] + data1[i+2]) / 3;
+                    const brightness2 = (data2[i] + data2[i+1] + data2[i+2]) / 3;
+                    diff += Math.abs(brightness1 - brightness2);
+                }
+                
+                const avgDiff = diff / (length / 16) / 255 * 100;
+                return avgDiff;
+            }
+            
+            function playBeep() {
+                try {
+                    if (!audioContext) {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    
+                    if (oscillator) {
+                        oscillator.stop();
+                    }
+                    
+                    oscillator = audioContext.createOscillator();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+                    
+                    const gainNode = audioContext.createGain();
+                    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.start();
+                    setTimeout(() => {
+                        oscillator.stop();
+                    }, 500);
+                } catch (error) {
+                    console.error('Ошибка воспроизведения звука:', error);
+                }
+            }
+            
+            function flashScreen() {
+                if (!isScreenFlashEnabled) return;
+                
+                flash.style.animation = 'none';
+                setTimeout(() => {
+                    flash.style.animation = 'flash 0.33s 3';
+                }, 10);
+            }
+            
+            function canSaveImage() {
+                if (saveInterval === 0) return true;
+                
+                const now = Date.now();
+                const timeDiff = (now - lastSaveTime) / 1000;
+                
+                if (timeDiff >= saveInterval) {
+                    lastSaveTime = now;
+                    return true;
+                }
+                
+                return false;
+            }
+            
+            async function saveImageWithTimestamp() {
+                if (!directoryHandle) {
+                    status.textContent = 'Сначала выберите папку';
+                    return;
+                }
+                
+                if (!canSaveImage()) {
+                    return;
+                }
+                
+                try {
+                    // Получаем реальное соотношение сторон видео
+                    const videoWidth = video.videoWidth;
+                    const videoHeight = video.videoHeight;
+                    const videoAspectRatio = videoWidth / videoHeight;
+                    
+                    // Получаем размеры контейнера для отображения
+                    const containerWidth = video.offsetWidth;
+                    const containerHeight = video.offsetHeight;
+                    const containerAspectRatio = containerWidth / containerHeight;
+                    
+                    let renderWidth, renderHeight, offsetX, offsetY;
+                    
+                    // Вычисляем размеры для сохранения (сохраняем ту же область, что видна на экране)
+                    if (videoAspectRatio > containerAspectRatio) {
+                        // Видео шире контейнера - обрезаем по бокам
+                        renderHeight = videoHeight;
+                        renderWidth = videoHeight * containerAspectRatio;
+                        offsetX = (videoWidth - renderWidth) / 2;
+                        offsetY = 0;
+                    } else {
+                        // Видео выше контейнера - обрезаем сверху и снизу
+                        renderWidth = videoWidth;
+                        renderHeight = videoWidth / containerAspectRatio;
+                        offsetX = 0;
+                        offsetY = (videoHeight - renderHeight) / 2;
+                    }
+                    
+                    const saveCanvas = document.createElement('canvas');
+                    saveCanvas.width = containerWidth;
+                    saveCanvas.height = containerHeight;
+                    
+                    const saveContext = saveCanvas.getContext('2d');
+                    
+                    // Рисуем только видимую часть видео
+                    saveContext.drawImage(
+                        video,
+                        offsetX, offsetY, renderWidth, renderHeight, // source rectangle
+                        0, 0, containerWidth, containerHeight        // destination rectangle
+                    );
+                    
+                    const now = new Date();
+                    const timestamp = now.toLocaleString();
+                    
+                    // Добавляем timestamp
+                    saveContext.font = '12px Arial';
+                    saveContext.fillStyle = 'white';
+                    saveContext.strokeStyle = 'black';
+                    saveContext.lineWidth = 2;
+                    saveContext.textAlign = 'right';
+                    saveContext.textBaseline = 'bottom';
+                    
+                    saveContext.strokeText(timestamp, containerWidth - 5, containerHeight - 5);
+                    saveContext.fillText(timestamp, containerWidth - 5, containerHeight - 5);
+                    
+                    saveCanvas.toBlob(async (blob) => {
+                        try {
+                            const fileName = `detection_${now.getTime()}.png`;
+                            const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+                            const writable = await fileHandle.createWritable();
+                            await writable.write(blob);
+                            await writable.close();
+                            
+                            // Увеличиваем счетчик фото
+                            photoCount++;
+                            updateStats();
+                            
+                            status.textContent = `Сохранено: ${fileName}`;
+                        } catch (error) {
+                            console.error('Ошибка сохранения файла:', error);
+                            status.textContent = 'Ошибка сохранения';
+                        }
+                    }, 'image/png');
+                } catch (error) {
+                    console.error('Ошибка создания изображения:', error);
+                    status.textContent = 'Ошибка создания';
+                }
+            }
+            
+            async function saveSettings() {
+                // Сохраняем настройки в локальное хранилище
+                const settings = {
+                    threshold: parseInt(thresholdSlider.value),
+                    pollingInterval: parseInt(pollingSlider.value),
+                    saveInterval: parseInt(intervalSlider.value),
+                    isScreenFlashEnabled: isScreenFlashEnabled
+                };
+                
+                localStorage.setItem('detectorSettings', JSON.stringify(settings));
+            }
+            
+            async function loadSettings() {
+                try {
+                    const saved = localStorage.getItem('detectorSettings');
+                    if (saved) {
+                        const settings = JSON.parse(saved);
+                        
+                        if (settings.threshold) {
+                            thresholdSlider.value = settings.threshold;
+                            thresholdInput.value = settings.threshold;
+                            thresholdValue.textContent = settings.threshold + '%';
+                        }
+                        
+                        if (settings.pollingInterval) {
+                            pollingSlider.value = settings.pollingInterval;
+                            pollingValue.textContent = settings.pollingInterval + ' мс';
+                            pollingInterval = settings.pollingInterval;
+                        }
+                        
+                        if (settings.saveInterval) {
+                            intervalSlider.value = settings.saveInterval;
+                            intervalValue.textContent = settings.saveInterval + ' сек';
+                            saveInterval = settings.saveInterval;
+                        }
+                        
+                        if (settings.isScreenFlashEnabled !== undefined) {
+                            isScreenFlashEnabled = settings.isScreenFlashEnabled;
+                            if (isScreenFlashEnabled) {
+                                screenFlashBtn.classList.add('button-flash-active');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Ошибка загрузки настроек:', error);
+                }
+            }
+            
+            async function eraseImages() {
+                if (!directoryHandle) return;
+                
+                try {
+                    const filesToDelete = [];
+                    for await (const entry of directoryHandle.values()) {
+                        if (entry.kind === 'file' && entry.name.endsWith('.png')) {
+                            filesToDelete.push(entry);
+                        }
+                    }
+                    
+                    for (const fileHandle of filesToDelete) {
+                        try {
+                            await directoryHandle.removeEntry(fileHandle.name);
+                        } catch (error) {
+                            console.error('Ошибка удаления файла:', error);
+                        }
+                    }
+                    
+                    status.textContent = `Удалено ${filesToDelete.length} файлов`;
+                    
+                } catch (error) {
+                    console.error('Ошибка удаления файлов:', error);
+                    status.textContent = 'Ошибка удаления';
+                }
+            }
+            
+            async function selectFolder() {
+                try {
+                    if (!window.showDirectoryPicker) {
+                        status.textContent = 'Ваш браузер не поддерживает выбор папки';
+                        saveInfo.textContent = 'Функция не поддерживается';
+                        return;
+                    }
+                    
+                    directoryHandle = await window.showDirectoryPicker();
+                    status.textContent = `Папка выбрана: ${directoryHandle.name}`;
+                    saveInfo.textContent = `Папка: ${directoryHandle.name}`;
+                    openBtn.disabled = false;
+                    openBtn.classList.add('button-open-active');
+                    eraseBtn.disabled = false;
+                    
+                    await saveSettings();
+                    
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Ошибка выбора папки:', error);
+                        status.textContent = 'Ошибка выбора папки';
+                        saveInfo.textContent = 'Ошибка выбора папки';
+                    }
+                }
+            }
+            
+            async function viewImages() {
+                if (!directoryHandle) {
+                    status.textContent = 'Сначала выберите папку';
+                    return;
+                }
+                
+                try {
+                    if (isMonitoring) {
+                        stopMonitoring();
+                    }
+                    
+                    imageFiles = [];
+                    for await (const entry of directoryHandle.values()) {
+                        if (entry.kind === 'file' && entry.name.endsWith('.png')) {
+                            imageFiles.push(entry);
+                        }
+                    }
+                    
+                    imageFiles.sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    if (imageFiles.length === 0) {
+                        noImagesMessage.style.display = 'block';
+                        setTimeout(() => {
+                            noImagesMessage.style.display = 'none';
+                        }, 2000);
+                        return;
+                    }
+                    
+                    isViewingImages = true;
+                    video.style.display = 'none';
+                    imageView.style.display = 'block';
+                    navButtons.style.display = 'flex';
+                    imageCounter.style.display = 'block';
+                    closeButton.style.display = 'flex';
+                    
+                    currentImageIndex = 0;
+                    await showImage(currentImageIndex);
+                    
+                } catch (error) {
+                    console.error('Ошибка чтения папки:', error);
+                    status.textContent = 'Ошибка чтения папки';
+                }
+            }
+            
+            async function showImage(index) {
+                if (index < 0 || index >= imageFiles.length) return;
+                
+                try {
+                    const fileHandle = imageFiles[index];
+                    const file = await fileHandle.getFile();
+                    const url = URL.createObjectURL(file);
+                    
+                    imageView.onload = function() {
+                        // Центрируем изображение после загрузки
+                        imageView.style.display = 'block';
+                        imageView.style.maxWidth = '100%';
+                        imageView.style.maxHeight = '100%';
+                        imageView.style.width = 'auto';
+                        imageView.style.height = 'auto';
+                    };
+                    
+                    imageView.src = url;
+                    currentImageIndex = index;
+                    imageCounter.textContent = `${index + 1}/${imageFiles.length}`;
+                } catch (error) {
+                    console.error('Ошибка загрузки изображения:', error);
+                }
+            }
+            
+            function showPrevImage() {
+                if (currentImageIndex > 0) {
+                    showImage(currentImageIndex - 1);
+                }
+            }
+            
+            function showNextImage() {
+                if (currentImageIndex < imageFiles.length - 1) {
+                    showImage(currentImageIndex + 1);
+                }
+            }
+            
+            function exitImageView() {
+                isViewingImages = false;
+                imageView.style.display = 'none';
+                video.style.display = 'block';
+                navButtons.style.display = 'none';
+                imageCounter.style.display = 'none';
+                closeButton.style.display = 'none';
+                
+                if (imageView.src) {
+                    URL.revokeObjectURL(imageView.src);
+                }
+            }
+            
+            function updateStats() {
+                detectionCountEl.textContent = detectionCount;
+                photoCountEl.textContent = photoCount;
+            }
+            
+            function resetStats() {
+                detectionCount = 0;
+                photoCount = 0;
+                updateStats();
+            }
+            
+            function startMonitoring() {
+                if (isMonitoring) return;
+                
+                if (isViewingImages) {
+                    exitImageView();
+                }
+                
+                // Сбрасываем статистику при начале нового сеанса
+                if (!sessionStarted) {
+                    resetStats();
+                    sessionStarted = true;
+                }
+                
+                const threshold = parseFloat(thresholdInput.value);
+                status.textContent = 'Мониторинг...';
+                isMonitoring = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                startBtn.classList.remove('button-active');
+                stopBtn.classList.add('button-active');
+                
+                lastImageData = captureFrame();
+                
+                monitoringInterval = setInterval(() => {
+                    const currentFrame = captureFrame();
+                    const change = compareImages(lastImageData, currentFrame, threshold);
+                    
+                    if (change >= threshold) {
+                        // Увеличиваем счетчик срабатываний
+                        detectionCount++;
+                        updateStats();
+                        
+                        status.textContent = `Изменение: ${change.toFixed(2)}%`;
+                        
+                        playBeep();
+                        flashScreen();
+                        
+                        if (isSaving) {
+                            saveImageWithTimestamp();
+                        }
+                        
+                        lastImageData = currentFrame;
+                    } else {
+                        status.textContent = `Мониторинг: ${change.toFixed(2)}%`;
+                    }
+                }, pollingInterval);
+            }
+            
+            function stopMonitoring() {
+                if (!isMonitoring) return;
+                
+                clearInterval(monitoringInterval);
+                isMonitoring = false;
+                sessionStarted = false; // Завершаем сеанс
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.classList.add('button-active');
+                stopBtn.classList.remove('button-active');
+                status.textContent = 'Мониторинг остановлен';
+                
+                if (oscillator) {
+                    oscillator.stop();
+                    oscillator = null;
+                }
+            }
+            
+            function startSaving() {
+                if (!directoryHandle) {
+                    status.textContent = 'Сначала выберите папку';
+                    return;
+                }
+                
+                isSaving = true;
+                saveBtn.disabled = true;
+                stopSaveBtn.disabled = false;
+                saveBtn.classList.remove('button-save-active');
+                stopSaveBtn.classList.add('button-save-active');
+                status.textContent = 'Сохранение активировано';
+            }
+            
+            function stopSaving() {
+                isSaving = false;
+                saveBtn.disabled = false;
+                stopSaveBtn.disabled = true;
+                saveBtn.classList.add('button-save-active');
+                stopSaveBtn.classList.remove('button-save-active');
+                status.textContent = 'Сохранение остановлено';
+            }
+        });
+    </script>
+</body>
+</html>
